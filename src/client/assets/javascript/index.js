@@ -25,8 +25,7 @@ async function onPageLoad() {
       renderAt("#racers", html);
     });
   } catch (error) {
-    console.log("Problem getting tracks and racers ::", error.message);
-    console.error(error);
+    handleError("onPageLoad", err);
   }
 }
 
@@ -67,8 +66,7 @@ async function delay(ms) {
   try {
     return await new Promise((resolve) => setTimeout(resolve, ms));
   } catch (error) {
-    console.log("an error shouldn't be possible here");
-    console.log(error);
+    handleError("delay", err);
   }
 }
 // ^ PROVIDED CODE ^ DO NOT REMOVE
@@ -82,7 +80,7 @@ async function handleCreateRace() {
     const race = await createRace(store.player_id, store.track_id);
     store = { ...store, race_id: race.ID };
   } catch (err) {
-    console.log(err);
+    handleError("handleCreateRace", err);
   }
   let startyourEngines = await runCountdown();
   let ready = await startRace(store.race_id);
@@ -94,7 +92,7 @@ function runRace(raceID) {
     let updateRaceProgress = setInterval(() => {
       getRace(raceID)
         .then((raceData) => {
-          if (raceData.status === "inprogress") {
+          if (raceData.status === "in-progress") {
             renderAt("#leaderBoard", raceProgress(raceData.positions));
           } else if (raceData.status === "finished") {
             clearInterval(updateRaceProgress);
@@ -102,8 +100,8 @@ function runRace(raceID) {
             resolve(raceData);
           }
         })
-        .catch((err) => "An error occured while updating the race");
-    }, 500);
+        .catch((err) => handleError("runRace", err));
+    }, 1000);
   });
 }
 
@@ -122,14 +120,12 @@ async function runCountdown() {
         }
       }, 1000);
     });
-  } catch (error) {
-    console.log(error);
+  } catch (err) {
+    handleError("runCountdown", err);
   }
 }
 
 function handleSelectPodRacer(target) {
-  console.log("selected a pod", target.id);
-
   // remove class selected from all racer options
   const selected = document.querySelector("#racers .selected");
   if (selected) {
@@ -142,8 +138,6 @@ function handleSelectPodRacer(target) {
 }
 
 function handleSelectTrack(target) {
-  console.log("selected a track", target.id);
-
   // remove class selected from all track options
   const selected = document.querySelector("#tracks .selected");
   if (selected) {
@@ -156,9 +150,7 @@ function handleSelectTrack(target) {
 }
 
 function handleAccelerate() {
-  console.log("accelerate button clicked");
-  const racerId = store.player_id;
-  accelerate(racerId);
+  accelerate(store.race_id);
 }
 
 // HTML VIEWS ------------------------------------------------
@@ -261,7 +253,9 @@ function resultsView(positions) {
 }
 
 function raceProgress(positions) {
-  let userPlayer = positions.find((e) => e.id === store.player_id);
+  let userPlayer = positions.find(
+    (e) => Number(e.id) === Number(store.player_id)
+  );
   userPlayer.driver_name += " (you)";
 
   positions = positions.sort((a, b) => (a.segment > b.segment ? -1 : 1));
@@ -312,13 +306,13 @@ function defaultFetchOpts() {
 function getTracks() {
   return fetch(`${SERVER}/api/tracks`)
     .then((tracks) => tracks.json())
-    .catch((err) => console.error(err));
+    .catch((err) => handleError("geTracks", err));
 }
 
 function getRacers() {
   return fetch(`${SERVER}/api/cars`)
     .then((cars) => cars.json())
-    .catch((err) => console.error(err));
+    .catch((err) => handleError("getRacers", err));
 }
 
 function createRace(player_id, track_id) {
@@ -333,32 +327,33 @@ function createRace(player_id, track_id) {
     body: JSON.stringify(body),
   })
     .then((res) => res.json())
-    .catch((err) => console.log("Problem with createRace request::", err));
+    .catch((err) => handleError("createRace", err));
 }
 
 function getRace(id) {
-  return fetch(`${SERVER}/api/races/${id}`)
+  return fetch(`${SERVER}/api/races/${id - 1}`)
     .then((race) => {
-      console.log(race);
       return race.json();
     })
-    .catch((err) => console.error(err));
+    .catch((err) => handleError("getRace", err));
 }
 
 function startRace(id) {
-  return fetch(`${SERVER}/api/races/${id}/start`, {
+  return fetch(`${SERVER}/api/races/${id - 1}/start`, {
     method: "POST",
     ...defaultFetchOpts(),
   })
     .then(() => console.log("Race started"))
-    .catch((err) => console.log("Problem with startRace request::", err));
+    .catch((err) => handleError("startRace", err));
 }
 
 function accelerate(id) {
-  return fetch(`${SERVER}/api/races/${id}/accelerate`, {
+  return fetch(`${SERVER}/api/races/${id - 1}/accelerate`, {
     method: "POST",
     ...defaultFetchOpts(),
-  })
-    .then((res) => res.json())
-    .catch((err) => console.log("Problem with accelerate request::", err));
+  }).catch((err) => handleError("accelerate", err));
+}
+
+function handleError(functionName, err) {
+  console.log(`Error occured in: ${functionName}`, err);
 }
